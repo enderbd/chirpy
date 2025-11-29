@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+
 func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -30,41 +31,56 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits.Store(0)
-	w.Header().Set("Content-Type",  "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "Hits reset to 0!\n")
+
+	if cfg.platform == "dev" {
+		cfg.fileserverHits.Store(0)
+		err := cfg.db.DeleteUsers(r.Context())
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Could not reset the Users ", err)
+			return
+		}
+		w.Header().Set("Content-Type",  "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "Hits reset to 0!\n")
+
+	} else {
+		respondWithError(w, http.StatusForbidden, "403 Forbidden", nil)
+	}
 
 }
 
-func handlerValidate(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
+func (cfg* apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+	type userRequest struct {
+		Email string `json:"email"`
 	}
-	type returnVals struct {
-		CleanedBody string `json:"cleaned_body"`
+
+	if r.Method != http.MethodPost {
+		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
 	}
-decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
+
+	var userReq userRequest
+	err := json.NewDecoder(r.Body).Decode(&userReq)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters", err)
 		return
 	}
 
-	const maxChirpLength = 140
-	if len(params.Body) > maxChirpLength {
-		respondWithError(w, http.StatusBadRequest, "Chirp it too long", err)
+	user, err := cfg.db.CreateUser(r.Context(), userReq.Email)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not create user", err)
 		return
 	}
 
-	cleaned := checkProfanity(params.Body)
+	outUser := User {
+		ID: user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email: user.Email,
+	}
 
+	respondWithJson(w, http.StatusCreated, outUser)
 
-	respondWithJson(w, http.StatusOK, returnVals{
-		CleanedBody: cleaned,
-	})
-	
 }
 
 
@@ -109,7 +125,7 @@ func respondWithJson(w http.ResponseWriter, code int, payload any) {
 	w.Write(data)
 }
 
-func checkProfanity(body string) string {
+func removeProfanity(body string) string {
 	badWords := map[string]struct{} {
 		"kerfuffle": {}, 
 		"sharbert": {},
