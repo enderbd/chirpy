@@ -19,6 +19,8 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 type Chirp struct {
 	ID        uuid.UUID `json:"id"`
@@ -32,6 +34,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform string
+	secret string
 }
 
 func main() {
@@ -43,7 +46,14 @@ func main() {
 	if dbUrl == "" {
 		log.Fatal("DB_URL enviroment variable not found, please set it in .env file!")
 	}
+	
 	platform := os.Getenv("PLATFORM")
+	
+	secret := os.Getenv("SECRET")
+	if secret == "" {
+		log.Fatal("No secret for authentication set as enviroment variable!")
+	}
+
 
 	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
@@ -51,10 +61,12 @@ func main() {
 	}
 	dbQueries := database.New(db)
 
+
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform: platform,
+		secret: secret,
 	}
 
 	mux := http.NewServeMux()

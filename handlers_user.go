@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/enderbd/chirpy/internal/auth"
 	"github.com/enderbd/chirpy/internal/database"
@@ -58,6 +59,7 @@ func (cfg* apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 	type userRequest struct {
 		Email string `json:"email"`
 		Password string `json:"password"`
+		ExpiresInSeconds int `json:"expires_in_seconds"`
 	}
 
 	var userReq userRequest
@@ -84,11 +86,23 @@ func (cfg* apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expirationTime := time.Hour
+	if userReq.ExpiresInSeconds > 0 && userReq.ExpiresInSeconds < 3600 {
+		expirationTime = time.Duration(userReq.ExpiresInSeconds) * time.Second
+	}
+
+	token, err := auth.MakeJWT(user.ID, cfg.secret, expirationTime)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not create JWT token", err)
+		return
+	}
+
 	outUser := User {
 		ID: user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email: user.Email,
+		Token: token,
 	}
 
 	respondWithJson(w, http.StatusOK, outUser)
