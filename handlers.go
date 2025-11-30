@@ -49,40 +49,6 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (cfg* apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	type userRequest struct {
-		Email string `json:"email"`
-	}
-
-	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
-		return
-	}
-
-	var userReq userRequest
-	err := json.NewDecoder(r.Body).Decode(&userReq)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters", err)
-		return
-	}
-
-	user, err := cfg.db.CreateUser(r.Context(), userReq.Email)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could not create user", err)
-		return
-	}
-
-	outUser := User {
-		ID: user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email: user.Email,
-	}
-
-	respondWithJson(w, http.StatusCreated, outUser)
-
-}
-
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
