@@ -36,7 +36,10 @@ func main() {
 	if secret == "" {
 		log.Fatal("No secret for authentication set as enviroment variable!")
 	}
-
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		log.Fatal("Plka key enviroment not found!")
+	}
 
 	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
@@ -50,6 +53,7 @@ func main() {
 		db:             dbQueries,
 		platform: platform,
 		secret: secret,
+		polkaKey: polkaKey,
 	}
 
 	mux := http.NewServeMux()

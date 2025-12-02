@@ -241,6 +241,12 @@ func (cfg* apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg* apiConfig) handlerUpgradeRed(w http.ResponseWriter, r *http.Request) {
+	polkaKey, err := auth.GetAPIKey(r.Header)
+	if polkaKey != cfg.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized webhook request!", err)
+		return
+	}
+
 	type parameters struct {
 		Event string `json:"event"`
 		Data struct {
@@ -248,8 +254,9 @@ func (cfg* apiConfig) handlerUpgradeRed(w http.ResponseWriter, r *http.Request) 
 		} `json:"data"`
 	}
 
+	
 	var params parameters
-	err := json.NewDecoder(r.Body).Decode(&params)
+	err = json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters for webhooks", err)
 		return
