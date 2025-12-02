@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
+
 	"github.com/enderbd/chirpy/internal/auth"
 	"github.com/enderbd/chirpy/internal/database"
 	"github.com/google/uuid"
@@ -106,6 +109,17 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 
 		outChirps = append(outChirps, out)
 	}
+
+	sortOrder := strings.ToLower(r.URL.Query().Get("sort"))
+	if sortOrder != "asc" && sortOrder != "desc" {
+        	sortOrder = "asc" // default
+	}
+	sort.Slice(outChirps, func(i, j int) bool {
+        	if sortOrder == "asc" {
+	            return outChirps[i].CreatedAt.Before(outChirps[j].CreatedAt)
+        	}
+	        return outChirps[i].CreatedAt.After(outChirps[j].CreatedAt)
+	})
 	respondWithJson(w, http.StatusOK, outChirps)
 
 }
