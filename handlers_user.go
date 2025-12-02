@@ -7,8 +7,18 @@ import (
 
 	"github.com/enderbd/chirpy/internal/auth"
 	"github.com/enderbd/chirpy/internal/database"
+	"github.com/google/uuid"
 )
 
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Token string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed bool `json:"is_chirpy_red"`
+}
 
 
 func (cfg* apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +127,7 @@ func (cfg* apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		Email: dbUser.Email,
 		Token: token,
 		RefreshToken: refreshToken,
+		IsChirpyRed: dbUser.IsChirpyRed,
 	}
 
 	respondWithJson(w, http.StatusOK, outUser)
@@ -221,10 +232,47 @@ func (cfg* apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		ID: dbUser.ID,
 		CreatedAt: dbUser.CreatedAt,
 		UpdatedAt: dbUser.UpdatedAt,
-		Email: dbUser.Email,	
+		Email: dbUser.Email,
+		IsChirpyRed: dbUser.IsChirpyRed,
 	}
 
 	respondWithJson(w, http.StatusOK, response)
 
 }
 
+func (cfg* apiConfig) handlerUpgradeRed(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	var params parameters
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters for webhooks", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		respondWithError(w, http.StatusNoContent, "Not upgrading the user", err)
+		return
+	}
+
+	userId, err := uuid.Parse(params.Data.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Coiuld not convert parameters user ID to uuid", err)
+		return
+
+	}
+
+	err = cfg.db.UpgradeRed(r.Context(), userId)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "User to upgrade not found in the database!", err)
+		return
+	}
+	  
+	w.WriteHeader(http.StatusNoContent)
+
+}
