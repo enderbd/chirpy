@@ -12,7 +12,7 @@ import (
 
 
 func (cfg* apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	type userRequest struct {
+	type parameters struct {
 		Email string `json:"email"`
 		Password string `json:"password"`
 	}
@@ -22,20 +22,20 @@ func (cfg* apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var userReq userRequest
-	err := json.NewDecoder(r.Body).Decode(&userReq)
+	var params parameters
+	err := json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters", err)
 		return
 	}
 
-	hashedPasswd, err := auth.HashPassword(userReq.Password)
+	hashedPasswd, err := auth.HashPassword(params.Password)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Could not hash the password", err)
 		return
 	}
 	dbUser, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
-		Email: userReq.Email,
+		Email: params.Email,
 		HashedPassword: hashedPasswd,
 	})
 	if err != nil {
@@ -174,5 +174,57 @@ func (cfg* apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg* apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+		Password string `json:"password"`
+	}
+	var params parameters
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not decode parameters", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Could not find JWT", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Could not validate JWT", err)
+		return
+	}
+ 
+	hashedPasswd, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not hash the password", err)
+		return
+	}
+
+	dbUser, err := cfg.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID: userId,
+		Email: params.Email,
+		HashedPassword: hashedPasswd,
+	})
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not update the user email and password!", err)
+		return
+	}
+
+	response := User {
+		ID: dbUser.ID,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+		Email: dbUser.Email,	
+	}
+
+	respondWithJson(w, http.StatusOK, response)
+
 }
 
